@@ -37,6 +37,7 @@
   },
   "packageManager": "yarn@3.2.3",
   "devDependencies": {
+    "@tailwindcss/typography": "^0.5.13",
     "husky": "^8.0.1",
     "lint-staged": "^13.0.3"
   },
