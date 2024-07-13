@@ -1,3 +1,6 @@
 [submodule "infra/ens/ens.domains"]
 	path = infra/ens/ens.domains
 	url = git@github.com:ensdomains/ens.domains.git
+[submodule "contracts/zk-proof/rust-bcrypt"]
+	path = contracts/zk-proof/rust-bcrypt
+	url = git@github.com:Keats/rust-bcrypt.git
