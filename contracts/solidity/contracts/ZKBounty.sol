@@ -8,13 +8,20 @@ contract ZKBounty is IBounties, ReentrancyGuard {
     mapping(bytes32 => Bounty) private bounties;
     mapping(bytes32 => uint256) private bountyIndices;
     bytes32[] private bountyIds;
+    mapping(address => bool) private registeredIssuers;
 
+    event IssuerRegistered(address indexed issuer);
     event BountySubmitted(bytes32 indexed bountyId, address indexed submitter, uint8 bountyType, uint256 reward);
     event HunterRegistered(bytes32 indexed bountyId, address indexed hunter);
     event ReportSubmitted(bytes32 indexed bountyId, address indexed worker, bytes32 reportHash);
     event ReportApproved(bytes32 indexed bountyId);
     event ReportRejected(bytes32 indexed bountyId);
     event BountyWithdrawn(bytes32 indexed bountyId);
+
+    modifier onlyRegisteredIssuer() {
+        require(registeredIssuers[msg.sender], "Not a registered issuer");
+        _;
+    }
 
     modifier onlySubmitter(bytes32 bountyId) {
         require(bounties[bountyId].submitter == msg.sender, "Not the submitter");
@@ -31,11 +38,16 @@ contract ZKBounty is IBounties, ReentrancyGuard {
         _;
     }
 
-    function submitBounty(uint8 bountyType, uint256 reward, string memory bountyHash) external payable returns (bytes32) {
+    function registerIssuer() external {
+        require(!registeredIssuers[msg.sender], "Issuer already registered");
+        registeredIssuers[msg.sender] = true;
+        emit IssuerRegistered(msg.sender);
+    }
+
+    function submitBounty(uint8 bountyType, uint256 reward, string memory bountyHash) external payable onlyRegisteredIssuer returns (bytes32) {
         require(msg.value == reward, "Reward must be equal to the sent value");
 
         bytes32 bountyId = keccak256(abi.encodePacked(msg.sender, bountyType, bountyHash, block.number));
-        // require(bounties[bountyId].submitter == address(0), "Bounty already exists");
 
         Bounty storage newBounty = bounties[bountyId];
         newBounty.submitter = msg.sender;
@@ -165,5 +177,9 @@ contract ZKBounty is IBounties, ReentrancyGuard {
             reportHashes[i] = bounty.reports[hunter];
         }
         return reportHashes;
+    }
+
+    function isRegisteredIssuer(address issuer) external view returns (bool) {
+        return registeredIssuers[issuer];
     }
 }
