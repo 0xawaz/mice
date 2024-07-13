@@ -1,15 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
 import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
-import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
 import { NextPage } from "next";
 
 const BountyDetail: NextPage = () => {
-  const { primaryWallet, networkConfigurations } = useDynamicContext();
-
   const bounty = {
     title: "Build a Web3 Dashboard",
     issuer: "Acme Web3 Inc.",

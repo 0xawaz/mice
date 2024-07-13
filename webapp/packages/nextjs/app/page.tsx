@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
 import type { NextPage } from "next";
 import { BugAntIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
@@ -13,36 +14,41 @@ const Home: NextPage = () => {
   const [messageSignature, setMessageSignature] = useState<string>("");
   const [transactionSignature, setTransactionSignature] = useState<string>("");
   const connectedAddress = primaryWallet?.address;
+  const router = useRouter();
 
-  const handleSignMesssage = async () => {
-    try {
-      const signature = await signMessage("Hello World", primaryWallet);
-      setMessageSignature(signature);
+  useEffect(() => {
+    if (connectedAddress) router.push("/signup");
+  }, [connectedAddress, router]);
 
-      setTimeout(() => {
-        setMessageSignature("");
-      }, 10000);
-    } catch (e) {
-      console.error(e);
-    }
-  };
+  // const handleSignMesssage = async () => {
+  //   try {
+  //     const signature = await signMessage("Hello World", primaryWallet);
+  //     setMessageSignature(signature);
 
-  const handleSendTransaction = async () => {
-    try {
-      const isTestnet = await primaryWallet?.connector?.isTestnet();
-      if (!isTestnet) {
-        alert("You're not on a testnet, proceed with caution.");
-      }
-      const hash = await sendTransaction(connectedAddress, "0.0001", primaryWallet, networkConfigurations);
-      setTransactionSignature(hash);
+  //     setTimeout(() => {
+  //       setMessageSignature("");
+  //     }, 10000);
+  //   } catch (e) {
+  //     console.error(e);
+  //   }
+  // };
 
-      setTimeout(() => {
-        setTransactionSignature("");
-      }, 10000);
-    } catch (e) {
-      console.error(e);
-    }
-  };
+  // const handleSendTransaction = async () => {
+  //   try {
+  //     const isTestnet = await primaryWallet?.connector?.isTestnet();
+  //     if (!isTestnet) {
+  //       alert("You're not on a testnet, proceed with caution.");
+  //     }
+  //     const hash = await sendTransaction(connectedAddress, "0.0001", primaryWallet, networkConfigurations);
+  //     setTransactionSignature(hash);
+
+  //     setTimeout(() => {
+  //       setTransactionSignature("");
+  //     }, 10000);
+  //   } catch (e) {
+  //     console.error(e);
+  //   }
+  // };
 
   return (
     <div className="flex flex-col min-h-[100dvh] ">
