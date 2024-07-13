@@ -2,18 +2,15 @@
 pragma solidity ^0.8.0;
 
 interface IBounties {
-    struct Report {
-        address worker;
-        string reportHash;
-        bool isSubmitted;
-    }
-
     struct Bounty {
         address submitter;
         uint8 bountyType;
         uint256 reward;
         string bountyHash;
+        string uri;
         bool isApproved;
-        Report[] reports;
+        address[] hunters;
+        // table of hunters with their reports
+        mapping(address => bytes32) reports;
     }
 }
