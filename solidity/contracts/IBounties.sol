@@ -16,9 +16,4 @@ interface IBounties {
         bool isApproved;
         Report[] reports;
     }
-
-    event BountySubmitted(bytes32 indexed bountyId, address indexed submitter, uint8 bountyType, uint256 reward);
-    event ReportSubmitted(bytes32 indexed bountyId, address indexed worker, string reportHash);
-    event ReportApproved(bytes32 indexed bountyId);
-    event BountyWithdrawn(bytes32 indexed bountyId);
 }

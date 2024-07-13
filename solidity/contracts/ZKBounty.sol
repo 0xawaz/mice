@@ -8,7 +8,12 @@ contract ZKBounty is IBounties {
     mapping(bytes32 => uint256) private bountyIndices;
     bytes32[] private bountyIds;
 
-    function submitBounty(uint8 bountyType, uint256 reward, string memory bountyHash) external payable {
+    event BountySubmitted(bytes32 indexed bountyId, address indexed submitter, uint8 bountyType, uint256 reward);
+    event ReportSubmitted(bytes32 indexed bountyId, address indexed worker, string reportHash);
+    event ReportApproved(bytes32 indexed bountyId);
+    event BountyWithdrawn(bytes32 indexed bountyId);
+    
+    function submitBounty(uint8 bountyType, uint256 reward, string memory bountyHash) external payable returns (bytes32) {
         require(msg.value == reward, "Reward must be equal to the sent value");
 
         bytes32 bountyId = keccak256(abi.encodePacked(msg.sender, bountyType, bountyHash, block.timestamp));
@@ -25,6 +30,7 @@ contract ZKBounty is IBounties {
         bountyIds.push(bountyId);
 
         emit BountySubmitted(bountyId, msg.sender, bountyType, reward);
+        return bountyId;
     }
 
     function submitReport(bytes32 bountyId, string memory reportHash) external {
