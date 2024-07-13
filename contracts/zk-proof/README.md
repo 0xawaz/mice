@@ -12,6 +12,19 @@ echo -n mice | md5
 # success: h1-h2=0
 # Failed:  h1-h2!=0
 
+# Bcrypt
+# install binaries
+brew install python
+
+## Create py env
+python3 -m venv .venv
+source .venv/bin/activate
+
+# install dependencies
+python3 -m pip install bcrypt
+
+# run script
+python hash_paragraph.py paragraph.txt
 ````
 
 
