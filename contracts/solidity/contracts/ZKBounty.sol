@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.20;
 
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./IBounties.sol";
 
-contract ZKBounty is IBounties {
+contract ZKBounty is IBounties, ReentrancyGuard {
     mapping(bytes32 => Bounty) private bounties;
     mapping(bytes32 => uint256) private bountyIndices;
     bytes32[] private bountyIds;
@@ -15,10 +16,25 @@ contract ZKBounty is IBounties {
     event ReportRejected(bytes32 indexed bountyId);
     event BountyWithdrawn(bytes32 indexed bountyId);
 
+    modifier onlySubmitter(bytes32 bountyId) {
+        require(bounties[bountyId].submitter == msg.sender, "Not the submitter");
+        _;
+    }
+
+    modifier bountyExists(bytes32 bountyId) {
+        require(bounties[bountyId].submitter != address(0), "Bounty does not exist");
+        _;
+    }
+
+    modifier bountyNotApproved(bytes32 bountyId) {
+        require(!bounties[bountyId].isApproved, "Bounty is already approved");
+        _;
+    }
+
     function submitBounty(uint8 bountyType, uint256 reward, string memory bountyHash) external payable returns (bytes32) {
         require(msg.value == reward, "Reward must be equal to the sent value");
 
-        bytes32 bountyId = keccak256(abi.encodePacked(msg.sender, bountyType, bountyHash, block.timestamp));
+        bytes32 bountyId = keccak256(abi.encodePacked(msg.sender, bountyType, bountyHash, block.number));
         require(bounties[bountyId].submitter == address(0), "Bounty already exists");
 
         Bounty storage newBounty = bounties[bountyId];
@@ -35,10 +51,8 @@ contract ZKBounty is IBounties {
         return bountyId;
     }
 
-    function registerToBounty(bytes32 bountyId) external {
+    function registerToBounty(bytes32 bountyId) external bountyExists(bountyId) bountyNotApproved(bountyId) {
         Bounty storage bounty = bounties[bountyId];
-        require(bounty.submitter != address(0), "Bounty does not exist");
-        require(!bounty.isApproved, "Bounty is already approved");
         require(bounty.submitter != msg.sender, "Submitter cannot register");
         
         bounty.hunters.push(msg.sender);
@@ -46,67 +60,53 @@ contract ZKBounty is IBounties {
         emit HunterRegistered(bountyId, msg.sender);
     }
 
-    function submitReport(bytes32 bountyId, bytes32 reportHash) external {
+    function submitReport(bytes32 bountyId, bytes32 reportHash) external bountyExists(bountyId) bountyNotApproved(bountyId) {
         Bounty storage bounty = bounties[bountyId];
-        require(bounty.submitter != address(0), "Bounty does not exist");
-        require(!bounty.isApproved, "Bounty is already approved");
-
-        // Push report hash for the sender
         bounty.reports[msg.sender] = reportHash;
 
         emit ReportSubmitted(bountyId, msg.sender, reportHash);
     }
 
-    // Finalize report
-    function finalizeReport(bytes32 bountyId, address payable hunter, bytes32 _hash) external payable {
+    function finalizeReport(bytes32 bountyId, address payable hunter, bytes32 hash) external payable onlySubmitter(bountyId) bountyExists(bountyId) bountyNotApproved(bountyId) nonReentrant {
         Bounty storage bounty = bounties[bountyId];
-        require(bounty.submitter == msg.sender, "Not the submitter");
-        require(!bounty.isApproved, "Bounty is already approved");
         require(bounty.reports[hunter] != "", "No report submitted");
 
         bytes32 reportHash = getReportHash(bountyId, hunter);
-        if (reportHash == _hash) {
-            approveReport(bountyId);
-            // Transfer the reward to the worker who submitted the report
-            payable(hunter).transfer(bounty.reward);
+        uint256 reward = bounty.reward;
+        
+        if (reportHash == hash) {
+            // Update state before transfer
+            bounty.isApproved = true;
+            
+            // Remove bounty from the list
+            uint256 index = bountyIndices[bountyId];
+            bountyIds[index] = bountyIds[bountyIds.length - 1];
+            bountyIds.pop();
+            delete bountyIndices[bountyId];
+            
+            // Emit event before transfer
             emit ReportApproved(bountyId);
+            
+            // Transfer the reward after state changes and event emission
+            payable(hunter).transfer(reward);
         } else {
-            rejectReport(bountyId);
+            delete bounty.hunters;
             emit ReportRejected(bountyId);
         }
-
-        // Remove bounty from the list
-        uint256 index = bountyIndices[bountyId];
-        bountyIds[index] = bountyIds[bountyIds.length - 1];
-        bountyIds.pop();
-        delete bountyIndices[bountyId];
     }
 
-    // Helper function to approve and send prize to the signer in case hash is correct
-    function approveReport(bytes32 bountyId) internal {
+    function withdrawUnapprovedBounty(bytes32 bountyId) external onlySubmitter(bountyId) bountyExists(bountyId) bountyNotApproved(bountyId) nonReentrant {
         Bounty storage bounty = bounties[bountyId];
-        require(bounty.submitter == msg.sender, "Not the submitter");
-        require(!bounty.isApproved, "Bounty is already approved");
-
-        bounty.isApproved = true;
-    }
-
-    // Helper function to reject the report
-    function rejectReport(bytes32 bountyId) internal {
-        Bounty storage bounty = bounties[bountyId];
-        require(bounty.submitter == msg.sender, "Not the submitter");
-        require(!bounty.isApproved, "Bounty is already approved");
-
-        delete bounty.hunters;
-    }
-
-    function withdrawUnapprovedBounty(bytes32 bountyId) external {
-        Bounty storage bounty = bounties[bountyId];
-        require(bounty.submitter == msg.sender, "Not the submitter");
-        require(!bounty.isApproved, "Bounty is already approved");
-
         uint256 reward = bounty.reward;
-        delete bounties[bountyId];
+        
+        // Clear bounty fields
+        bounty.submitter = address(0);
+        bounty.bountyType = 0;
+        bounty.reward = 0;
+        bounty.bountyHash = "";
+        bounty.isApproved = false;
+        delete bounty.hunters;
+        // Note: We can't delete the reports mapping, but it will be inaccessible
 
         // Remove bountyId from the list
         uint256 index = bountyIndices[bountyId];
@@ -114,18 +114,19 @@ contract ZKBounty is IBounties {
         bountyIds.pop();
         delete bountyIndices[bountyId];
 
-        // Refund the submitter
-        payable(msg.sender).transfer(reward);
-
+        // Emit event before transfer
         emit BountyWithdrawn(bountyId);
+
+        // Refund the submitter after state changes
+        payable(msg.sender).transfer(reward);
     }
 
-    function getBounty(bytes32 bountyId) external view returns (address submitter, uint8 bountyType, uint256 reward, string memory bountyHash, string memory uri, bool isApproved) {
+    function getBounty(bytes32 bountyId) external view bountyExists(bountyId) returns (address submitter, uint8 bountyType, uint256 reward, string memory bountyHash, string memory uri, bool isApproved) {
         Bounty storage bounty = bounties[bountyId];
         return (bounty.submitter, bounty.bountyType, bounty.reward, bounty.bountyHash, bounty.uri, bounty.isApproved);
     }
 
-    function getBountyReward(bytes32 bountyId) external view returns (uint256 amount) {
+    function getBountyReward(bytes32 bountyId) external view bountyExists(bountyId) returns (uint256 amount) {
         Bounty storage bounty = bounties[bountyId];
         return (bounty.reward);
     }
@@ -139,22 +140,18 @@ contract ZKBounty is IBounties {
         return bountyIds[index];
     }
 
-    function getReportHash(bytes32 bountyId, address hunter) public view returns (bytes32) {
+    function getReportHash(bytes32 bountyId, address hunter) public view bountyExists(bountyId) returns (bytes32) {
         Bounty storage bounty = bounties[bountyId];
         return bounty.reports[hunter];
     }
 
-    function getHuntersInBounty(bytes32 bountyId) external view returns (address[] memory) {
+    function getHuntersInBounty(bytes32 bountyId) external view bountyExists(bountyId) returns (address[] memory) {
         Bounty storage bounty = bounties[bountyId];
         return bounty.hunters;
     }
 
-    // New function to get all report hashes for a given bountyId
-    function getSubmittedReportsInBounty(bytes32 bountyId) external view returns (bytes32[] memory) {
+    function getSubmittedReportsInBounty(bytes32 bountyId) external view bountyExists(bountyId) bountyNotApproved(bountyId) returns (bytes32[] memory) {
         Bounty storage bounty = bounties[bountyId];
-        require(bounty.submitter != address(0), "Bounty does not exist");
-        require(!bounty.isApproved, "Bounty is already approved");
-
         bytes32[] memory reportHashes = new bytes32[](bounty.hunters.length);
         for (uint256 i = 0; i < bounty.hunters.length; i++) {
             address hunter = bounty.hunters[i];
