@@ -2,9 +2,9 @@ import {
   time,
   loadFixture,
 } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs";
 import { expect } from "chai";
 import hre from "hardhat";
+import { formatToBytes32 } from "./utils";
 
 describe("ZKBounty", function () {
   async function deployZKBountyFixture() {
@@ -20,12 +20,33 @@ describe("ZKBounty", function () {
     it("Should allow a user to submit a bounty", async function () {
       const { zkBounty, addr1 } = await loadFixture(deployZKBountyFixture);
       const bountyType = 1;
-      const reward = hre.ethers.parseEther("1.0");
+      const reward = hre.ethers.parseEther("0.01");
       const bountyHash = "hash1";
+      // Call the function and get the transaction object
+      const tx = await zkBounty.connect(addr1).submitBounty(bountyType, reward, bountyHash, { value: reward });
 
-      await expect(zkBounty.connect(addr1).submitBounty(bountyType, reward, bountyHash, { value: reward }))
-        .to.emit(zkBounty, "BountySubmitted")
-        .withArgs(addr1.address, bountyType, reward);
+      const bountyId = await zkBounty.getKeyAtIndex(0);
+      // Check for the emitted event
+      await expect(tx)
+      .to.emit(zkBounty, "BountySubmitted")
+      .withArgs(bountyId, addr1.address, bountyType, reward);
+    });
+
+    it("Should deposit the reward to the contract", async function () {
+      const { zkBounty, addr1 } = await loadFixture(deployZKBountyFixture);
+      const bountyType = 1;
+      const reward = hre.ethers.parseEther("0.01");
+      const bountyHash = "hash1";
+      const contractBalanceBeforeSubmitBounty = await hre.ethers.provider.getBalance(zkBounty.getAddress());
+      const addr1BalanceBeforeSubmitBounty = await hre.ethers.provider.getBalance(addr1.address);
+      await zkBounty.connect(addr1).submitBounty(bountyType, reward, bountyHash, { value: reward });
+      const contractBalanceAfterSubmitBounty = await hre.ethers.provider.getBalance(zkBounty.getAddress());
+      const addr1BalanceAfterSubmitBounty = await hre.ethers.provider.getBalance(addr1.address);
+      const bountyId = await zkBounty.getKeyAtIndex(0);
+      const bounty = await zkBounty.getBounty(bountyId);
+      expect(bounty.reward).to.equal(reward);
+      expect(contractBalanceAfterSubmitBounty).to.equal(contractBalanceBeforeSubmitBounty+reward);
+      expect(addr1BalanceAfterSubmitBounty).to.be.lessThan(addr1BalanceBeforeSubmitBounty);
     });
 
     it("Should not allow a bounty submission with incorrect reward value", async function () {
@@ -57,7 +78,8 @@ describe("ZKBounty", function () {
 
     it("Should not allow report submission for a non-existent bounty", async function () {
       const { zkBounty, addr2 } = await loadFixture(deployZKBountyFixture);
-      const bountyId = hre.ethers.formatUnits("nonExistentBounty");
+      // hardcode a random bountyId, must be in bytes format
+      const bountyId = formatToBytes32("randomBountyId");
       const reportHash = "reportHash1";
       await expect(zkBounty.connect(addr2).submitReport(bountyId, reportHash))
         .to.be.revertedWith("Bounty does not exist");
@@ -67,6 +89,8 @@ describe("ZKBounty", function () {
   describe("Report Approval and Reward Transfer", function () {
     it("Should allow the submitter to approve a report and transfer the reward", async function () {
       const { zkBounty, addr1, addr2 } = await loadFixture(deployZKBountyFixture);
+      const addr2BalanceBeforeBounty = await hre.ethers.provider.getBalance(addr2.address);
+      // console.log("addr2BalanceBeforeBounty", addr2BalanceBeforeBounty);
       const bountyType = 1;
       const reward = hre.ethers.parseEther("1.0");
       const bountyHash = "hash1";
@@ -80,8 +104,11 @@ describe("ZKBounty", function () {
         .to.emit(zkBounty, "ReportApproved")
         .withArgs(bountyId);
 
-      const addr2Balance = await hre.ethers.provider.getBalance(addr2.address);
-      expect(addr2Balance).to.equal(reward);
+      const addr2BalanceAfterBounty = await hre.ethers.provider.getBalance(addr2.address);
+      // console.log("addr2BalanceAfterBounty", addr2Balance);
+      // console.log("reward", reward);
+      const gasFees = 1000000000000000
+      expect(addr2BalanceAfterBounty).closeTo(addr2BalanceBeforeBounty+reward, gasFees);
     });
   });
 
