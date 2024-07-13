@@ -35,7 +35,7 @@ contract ZKBounty is IBounties, ReentrancyGuard {
         require(msg.value == reward, "Reward must be equal to the sent value");
 
         bytes32 bountyId = keccak256(abi.encodePacked(msg.sender, bountyType, bountyHash, block.number));
-        require(bounties[bountyId].submitter == address(0), "Bounty already exists");
+        // require(bounties[bountyId].submitter == address(0), "Bounty already exists");
 
         Bounty storage newBounty = bounties[bountyId];
         newBounty.submitter = msg.sender;
@@ -67,7 +67,14 @@ contract ZKBounty is IBounties, ReentrancyGuard {
         emit ReportSubmitted(bountyId, msg.sender, reportHash);
     }
 
-    function finalizeReport(bytes32 bountyId, address payable hunter, bytes32 hash) external payable onlySubmitter(bountyId) bountyExists(bountyId) bountyNotApproved(bountyId) nonReentrant {
+    function finalizeReport(bytes32 bountyId, address payable hunter, bytes32 hash) 
+        external 
+        payable 
+        bountyExists(bountyId)  // Move this before onlySubmitter
+        onlySubmitter(bountyId) 
+        bountyNotApproved(bountyId) 
+        nonReentrant 
+    {
         Bounty storage bounty = bounties[bountyId];
         require(bounty.reports[hunter] != "", "No report submitted");
 
