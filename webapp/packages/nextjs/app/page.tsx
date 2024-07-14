@@ -8,6 +8,7 @@ import type { NextPage } from "next";
 import { BugAntIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import { Address } from "~~/components/scaffold-eth";
 import { sendTransaction, signMessage } from "~~/lib/dynamic";
+import { isRegisteredIssuer, registerIssuer } from "~~/utils/scaffold-eth/contract";
 
 const Home: NextPage = () => {
   const { primaryWallet, networkConfigurations } = useDynamicContext();
@@ -17,7 +18,17 @@ const Home: NextPage = () => {
   const router = useRouter();
 
   useEffect(() => {
-    if (connectedAddress) router.push("/signup");
+    const checkAndRegisterUser = async () => {
+      if (connectedAddress) {
+        const isRegistered = await isRegisteredIssuer(connectedAddress);
+        if (!isRegistered) {
+          await registerIssuer();
+        }
+        router.push("/signup");
+      }
+    };
+
+    checkAndRegisterUser();
   }, [connectedAddress, router]);
 
   // const handleSignMesssage = async () => {
