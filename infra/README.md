@@ -1,6 +1,6 @@
 # Infrastracture
 
-In this doc, we will talk about our platform infrastracture.
+This doc explains our platform infrastracture and technology choices.
 
 ## ENS
 
