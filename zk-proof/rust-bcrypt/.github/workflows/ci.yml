@@ -1,0 +1,85 @@
+name: ci
+on:
+  pull_request:
+  push:
+    branches:
+    - master
+jobs:
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust: [1.60.0, stable]
+
+        include:
+          - rust: 1.60.0
+            test_no_std: false
+          - rust: 1.60.0
+            test_no_std: true
+          - rust: stable
+            test_no_std: true
+      fail-fast: false
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: ${{ matrix.rust }}
+        components: rustfmt
+
+    - name: Check without features
+      run: cargo check --no-default-features
+
+    - name: Run tests
+      run: cargo test
+
+    - name: Run tests using no_std
+      if: matrix.test_no_std == true
+      run: cargo test --no-default-features --features alloc
+
+  bare-metal:
+    # tests no alloc, no_std, no getrandom
+    name: bare-metal
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: stable
+        targets: thumbv6m-none-eabi
+
+    - name: Build
+      run: cd examples/bare-metal; cargo build
+
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+
+      - run: cargo fmt --all -- --check
+
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.60.0
+          components: clippy
+
+      - run: cargo clippy -- -D warnings

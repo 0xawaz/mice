@@ -32,7 +32,7 @@ async function setName(wallet, company_name) {
   
   // Example usage:
   const wallet = '0x2E0558b762D6803DebC6Addd976704A2Da8472Dc';
-  const company_name = 'test';
+  const company_name = '0xawaz';
   
   setName(wallet, company_name)
     .then(company_ens => console.log('Company ENS:', company_ens))
